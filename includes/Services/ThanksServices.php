@@ -1,6 +1,6 @@
 <?php
 
-namespace MediaWiki\Extension\Thanks;
+namespace MediaWiki\Extension\Thanks\Services;
 
 use MediaWiki\MediaWikiServices;
 
@@ -33,4 +33,14 @@ class ThanksServices {
 		return $this->services->get( 'ThanksQueryHelper' );
 	}
 
+	public function getLinkGenerator(): ThanksLinkGenerator {
+		return $this->services->get( 'ThanksLinkGenerator' );
+	}
+
+	public function getPermissionHelper(): ThanksPermissionHelper {
+		return $this->services->get( 'ThanksPermissionHelper' );
+	}
+
 }
+
+class_alias( ThanksServices::class, 'MediaWiki\Extension\Thanks\ThanksServices' );

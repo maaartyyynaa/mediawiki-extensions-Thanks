@@ -1,5 +1,5 @@
 <?php
-namespace MediaWiki\Extension\Thanks;
+namespace MediaWiki\Extension\Thanks\Services;
 
 use DBAccessObjectUtils;
 use IDBAccessObject;
@@ -57,3 +57,5 @@ class ThanksQueryHelper {
 			->fetchRowCount();
 	}
 }
+
+class_alias( ThanksQueryHelper::class, 'MediaWiki\Extension\Thanks\ThanksQueryHelper' );

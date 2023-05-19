@@ -55,6 +55,12 @@
 	"AutoloadNamespaces": {
 		"MediaWiki\\Extension\\Thanks\\": "includes/"
 	},
+	"AutoloadClasses": {
+		"MediaWiki\\Extension\\Thanks\\ThanksServices": "includes/Services/ThanksServices.php",
+		"MediaWiki\\Extension\\Thanks\\Services\\ThanksServices": "includes/Services/ThanksServices.php",
+		"MediaWiki\\Extension\\Thanks\\ThanksQueryHelper": "includes/Services/ThanksQueryHelper.php",
+		"MediaWiki\\Extension\\Thanks\\Services\\ThanksQueryHelper": "includes/Services/ThanksQueryHelper.php"
+	},
 	"ResourceModules": {
 		"ext.thanks.images": {
 			"class": "ResourceLoaderImageModule",
@@ -176,20 +182,42 @@
 			"ext.thanks.mobilediff"
 		]
 	},
+	"HookHandlers": {
+		"main": {
+			"class": "MediaWiki\\Extension\\Thanks\\Handlers\\MainHandler",
+			"services": [
+				"RevisionLookup",
+				"UserOptionsManager",
+				"MainConfig",
+				"ThanksPermissionHelper",
+				"ThanksLinkGenerator"
+			]
+		},
+		"mobile-frontend": {
+			"class": "MediaWiki\\Extension\\Thanks\\Handlers\\MobileFrontendHandler",
+			"services": [ "ThanksPermissionHelper" ]
+		},
+		"echo": {
+			"class": "MediaWiki\\Extension\\Thanks\\Handlers\\EchoHandler"
+		},
+		"flow": {
+			"class": "MediaWiki\\Extension\\Thanks\\Handlers\\FlowHandler"
+		}
+	},
 	"Hooks": {
-		"ApiMain::moduleManager": "MediaWiki\\Extension\\Thanks\\Hooks::onApiMainModuleManager",
-		"BeforeCreateEchoEvent": "MediaWiki\\Extension\\Thanks\\Hooks::onBeforeCreateEchoEvent",
-		"BeforePageDisplay": "MediaWiki\\Extension\\Thanks\\Hooks::onBeforePageDisplay",
-		"BeforeSpecialMobileDiffDisplay": "MediaWiki\\Extension\\Thanks\\Hooks::onBeforeSpecialMobileDiffDisplay",
-		"DiffTools": "MediaWiki\\Extension\\Thanks\\Hooks::onDiffTools",
-		"DifferenceEngineViewHeader": "MediaWiki\\Extension\\Thanks\\Hooks::onDifferenceEngineViewHeader",
-		"EchoGetBundleRules": "MediaWiki\\Extension\\Thanks\\Hooks::onEchoGetBundleRules",
-		"GetAllBlockActions": "MediaWiki\\Extension\\Thanks\\Hooks::onGetAllBlockActions",
-		"GetLogTypesOnUser": "MediaWiki\\Extension\\Thanks\\Hooks::onGetLogTypesOnUser",
-		"HistoryTools": "MediaWiki\\Extension\\Thanks\\Hooks::onHistoryTools",
-		"LocalUserCreated": "MediaWiki\\Extension\\Thanks\\Hooks::onAccountCreated",
-		"LogEventsListLineEnding": "MediaWiki\\Extension\\Thanks\\Hooks::onLogEventsListLineEnding",
-		"PageHistoryBeforeList": "MediaWiki\\Extension\\Thanks\\Hooks::onPageHistoryBeforeList"
+		"ApiMain::moduleManager": "flow",
+		"BeforePageDisplay": "main",
+		"DiffTools": "main",
+		"DifferenceEngineViewHeader": "main",
+		"GetAllBlockActions": "main",
+		"GetLogTypesOnUser": "main",
+		"HistoryTools": "main",
+		"LocalUserCreated": "main",
+		"LogEventsListLineEnding": "main",
+		"PageHistoryBeforeList": "main",
+		"BeforeCreateEchoEvent": "echo",
+		"BeforeSpecialMobileDiffDisplay": "mobile-frontend",
+		"EchoGetBundleRules": "echo"
 	},
 	"ServiceWiringFiles": [
 		"ServiceWiring.php"
