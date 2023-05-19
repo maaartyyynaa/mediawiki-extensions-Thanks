@@ -191,10 +191,15 @@
 		"BeforeSpecialMobileDiffDisplay": "MediaWiki\\Extension\\Thanks\\Hooks::onBeforeSpecialMobileDiffDisplay",
 		"EchoGetBundleRules": "MediaWiki\\Extension\\Thanks\\Hooks::onEchoGetBundleRules"
 	},
-	"HookHandlers": {
-		"main": {
-			"class": "MediaWiki\\Extension\\Thanks\\Hooks"
-		}
+	"HookHandlers":{
+		"main":{
+			"class":"MediaWiki\\Extension\\Thanks\\Hooks"
+		},
+		"services": [
+			"RevisionLookup",
+			"UserOptionsManager",
+			"MainConfig"
+		]
 	},
 	"ServiceWiringFiles": [
 		"ServiceWiring.php"

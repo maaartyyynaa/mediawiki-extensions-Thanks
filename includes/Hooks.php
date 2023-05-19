@@ -5,6 +5,7 @@ namespace MediaWiki\Extension\Thanks;
 use ApiModuleManager;
 use Article;
 use CategoryPage;
+use Config;
 use ConfigException;
 use DatabaseLogEntry;
 use DifferenceEngine;
@@ -28,8 +29,10 @@ use MediaWiki\Hook\LogEventsListLineEndingHook;
 use MediaWiki\Hook\PageHistoryBeforeListHook;
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserOptionsManager;
 use MobileContext;
 use OutputPage;
 use RequestContext;
@@ -58,6 +61,30 @@ class Hooks implements
     PageHistoryBeforeListHook
 {
 
+    /** @var RevisionLookup $revisionLookup */
+    private RevisionLookup $revisionLookup;
+
+    /** @var UserOptionsManager  */
+    private UserOptionsManager $userOptionsManager;
+
+    /** @var Config $mainConfig */
+    private Config $mainConfig;
+
+    /**
+     * @param RevisionLookup $revisionLookup
+     * @param UserOptionsManager $userOptionsManager
+     * @param Config $mainConfig
+     */
+    public function __construct(
+        RevisionLookup $revisionLookup,
+        UserOptionsManager $userOptionsManager,
+        Config $mainConfig
+    ) {
+        $this->revisionLookup = $revisionLookup;
+        $this->userOptionsManager = $userOptionsManager;
+        $this->mainConfig = $mainConfig;
+    }
+
 	/**
 	 * Handler for the HistoryTools hook
 	 *
@@ -82,8 +109,7 @@ class Hooks implements
     public function onDiffTools( $newRevRecord, &$links, $oldRevRecord, $userIdentity ) {
 		// Don't allow thanking for a diff that includes multiple revisions
 		// This does a query that is too expensive for history rows (T284274)
-		$previous = MediaWikiServices::getInstance()
-			->getRevisionLookup()
+		$previous = $this->revisionLookup
 			->getPreviousRevision( $newRevRecord );
 		if ( $oldRevRecord && $previous &&
 			$previous->getId() !== $oldRevRecord->getId()
@@ -331,8 +357,7 @@ class Hooks implements
 		// New users get echo preferences set that are not the default settings for existing users.
 		// Specifically, new users are opted into email notifications for thanks.
 		if ( !$autocreated ) {
-			$userOptionsManager = MediaWikiServices::getInstance()->getUserOptionsManager();
-			$userOptionsManager->setOption( $user, 'echo-subscriptions-email-edit-thank', true );
+			$this->userOptionsManager->setOption( $user, 'echo-subscriptions-email-edit-thank', true );
 		}
 	}
 
@@ -480,8 +505,7 @@ class Hooks implements
 		}
 
 		// Make sure this log type is allowed.
-		$allowedLogTypes = MediaWikiServices::getInstance()
-			->getMainConfig()
+		$allowedLogTypes = $this->mainConfig
 			->get( 'ThanksAllowedLogTypes' );
 		if ( !in_array( $entry->getType(), $allowedLogTypes )
 			&& !in_array( $entry->getType() . 'Hooks.php/' . $entry->getSubtype(), $allowedLogTypes ) ) {
