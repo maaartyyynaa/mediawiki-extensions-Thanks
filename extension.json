@@ -193,13 +193,13 @@
 	},
 	"HookHandlers":{
 		"main":{
-			"class":"MediaWiki\\Extension\\Thanks\\Hooks"
-		},
-		"services": [
-			"RevisionLookup",
-			"UserOptionsManager",
-			"MainConfig"
-		]
+			"class":"MediaWiki\\Extension\\Thanks\\Hooks",
+			"services": [
+				"RevisionLookup",
+				"UserOptionsManager",
+				"MainConfig"
+			]
+		}
 	},
 	"ServiceWiringFiles": [
 		"ServiceWiring.php"
