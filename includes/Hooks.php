@@ -13,7 +13,6 @@ use EchoAttributeManager;
 use EchoEvent;
 use EchoUserLocator;
 use ExtensionRegistry;
-use Html;
 use ImagePage;
 use LogEventsList;
 use LogPage;
@@ -27,7 +26,6 @@ use MediaWiki\Hook\GetLogTypesOnUserHook;
 use MediaWiki\Hook\HistoryToolsHook;
 use MediaWiki\Hook\LogEventsListLineEndingHook;
 use MediaWiki\Hook\PageHistoryBeforeListHook;
-use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\RevisionRecord;
@@ -37,7 +35,6 @@ use MobileContext;
 use OutputPage;
 use RequestContext;
 use Skin;
-use SpecialPage;
 use Title;
 use User;
 use WikiPage;
@@ -94,7 +91,7 @@ class Hooks implements
 	 * @param UserIdentity $userIdentity
 	 */
     public function onHistoryTools( $revRecord, &$links, $prevRevRecord, $userIdentity ) {
-		self::insertThankLink( $revRecord,
+		HooksHelper::insertThankLink( $revRecord,
 			$links, $userIdentity );
 	}
 
@@ -117,140 +114,8 @@ class Hooks implements
 			return;
 		}
 
-		self::insertThankLink( $newRevRecord,
+		HooksHelper::insertThankLink( $newRevRecord,
 			$links, $userIdentity );
-	}
-
-	/**
-	 * Insert a 'thank' link into revision interface, if the user is allowed to thank.
-	 *
-	 * @param RevisionRecord $revisionRecord RevisionRecord object to add the thank link for
-	 * @param array &$links Links to add to the revision interface
-	 * @param UserIdentity $userIdentity The user performing the thanks.
-	 */
-	private static function insertThankLink(
-		RevisionRecord $revisionRecord,
-		array &$links,
-		UserIdentity $userIdentity
-	) {
-		$recipient = $revisionRecord->getUser();
-		if ( $recipient === null ) {
-			// Cannot see the user
-			return;
-		}
-
-		$user = MediaWikiServices::getInstance()->getUserFactory()->newFromUserIdentity( $userIdentity );
-
-		// Don't let users thank themselves.
-		// Exclude anonymous users.
-		// Exclude users who are blocked.
-		// Check whether bots are allowed to receive thanks.
-		// Don't allow thanking for a diff that includes multiple revisions
-		// Check whether we have a revision id to link to
-		if ( $userIdentity->isRegistered()
-			&& !$userIdentity->equals( $recipient )
-			&& !self::isUserBlockedFromTitle( $user, $revisionRecord->getPageAsLinkTarget() )
-			&& !self::isUserBlockedFromThanks( $user )
-			&& self::canReceiveThanks( $recipient )
-			&& !$revisionRecord->isDeleted( RevisionRecord::DELETED_TEXT )
-			&& $revisionRecord->getId() !== 0
-		) {
-			$links[] = self::generateThankElement(
-				$revisionRecord->getId(),
-				$user,
-				$recipient
-			);
-		}
-	}
-
-	/**
-	 * Check whether the user is blocked from the title associated with the revision.
-	 *
-	 * This queries the replicas for a block; if 'no block' is incorrectly reported, it
-	 * will be caught by ApiThank::dieOnUserBlockedFromTitle when the user attempts to thank.
-	 *
-	 * @param User $user
-	 * @param LinkTarget $title
-	 * @return bool
-	 */
-	private static function isUserBlockedFromTitle( User $user, LinkTarget $title ) {
-		return MediaWikiServices::getInstance()->getPermissionManager()
-			->isBlockedFrom( $user, $title, true );
-	}
-
-	/**
-	 * Check whether the user is blocked from giving thanks.
-	 *
-	 * @param User $user
-	 * @return bool
-	 */
-	private static function isUserBlockedFromThanks( User $user ) {
-		$block = $user->getBlock();
-		return $block && ( $block->isSitewide() || $block->appliesToRight( 'thanks' ) );
-	}
-
-	/**
-	 * Check whether a user is allowed to receive thanks or not
-	 *
-	 * @param UserIdentity $user Recipient
-	 * @return bool true if allowed, false if not
-	 */
-	protected static function canReceiveThanks( UserIdentity $user ) {
-		global $wgThanksSendToBots;
-
-		$legacyUser = MediaWikiServices::getInstance()->getUserFactory()->newFromUserIdentity( $user );
-		if ( !$user->isRegistered() || $legacyUser->isSystemUser() ) {
-			return false;
-		}
-
-		if ( !$wgThanksSendToBots && $legacyUser->isBot() ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Helper for self::insertThankLink
-	 * Creates either a thank link or thanked span based on users session
-	 * @param int $id Revision or log ID to generate the thank element for.
-	 * @param User $sender User who sends thanks notification.
-	 * @param UserIdentity $recipient User who receives thanks notification.
-	 * @param string $type Either 'revision' or 'log'.
-	 * @return string
-	 */
-	protected static function generateThankElement(
-		$id, User $sender, UserIdentity $recipient, $type = 'revision'
-	) {
-		// Check if the user has already thanked for this revision or log entry.
-		// Session keys are backwards-compatible, and are also used in the ApiCoreThank class.
-		$sessionKey = ( $type === 'revision' ) ? $id : $type . $id;
-		if ( $sender->getRequest()->getSessionData( "thanks-thanked-$sessionKey" ) ) {
-			return Html::element(
-				'span',
-				[ 'class' => 'mw-thanks-thanked' ],
-				wfMessage( 'thanks-thanked', $sender->getName(), $recipient->getName() )->text()
-			);
-		}
-
-		$genderCache = MediaWikiServices::getInstance()->getGenderCache();
-		// Add 'thank' link
-		$tooltip = wfMessage( 'thanks-thank-tooltip' )
-			->params( $sender->getName(), $recipient->getName() )
-			->text();
-
-		$subpage = ( $type === 'revision' ) ? '' : 'Log/';
-		return Html::element(
-			'a',
-			[
-				'class' => 'mw-thanks-thank-link',
-				'href' => SpecialPage::getTitleFor( 'Thanks', $subpage . $id )->getFullURL(),
-				'title' => $tooltip,
-				'data-' . $type . '-id' => $id,
-				'data-recipient-gender' => $genderCache->getGenderOf( $recipient->getName(), __METHOD__ ),
-			],
-			wfMessage( 'thanks-thank', $sender->getName(), $recipient->getName() )->text()
-		);
 	}
 
 	/**
@@ -376,7 +241,7 @@ class Hooks implements
 		if ( $rev
 			&& ExtensionRegistry::getInstance()->isLoaded( 'MobileFrontend' )
 			&& $rev->getUser()
-			&& self::canReceiveThanks( $rev->getUser() )
+			&& HooksHelper::canReceiveThanks( $rev->getUser() )
 			&& $output->getUser()->isRegistered()
 		) {
 			$output->addModules( [ 'ext.thanks.mobilediff' ] );
@@ -498,8 +363,8 @@ class Hooks implements
 		if (
 			$user->isAnon()
 			|| $entry->isDeleted( LogPage::DELETED_USER )
-			|| self::isUserBlockedFromTitle( $user, $entry->getTarget() )
-			|| self::isUserBlockedFromThanks( $user )
+			|| HooksHelper::isUserBlockedFromTitle( $user, $entry->getTarget() )
+			|| HooksHelper::isUserBlockedFromThanks( $user )
 		) {
 			return;
 		}
@@ -517,7 +382,7 @@ class Hooks implements
 		// Don't check for deleted revision (this avoids extraneous queries from Special:Log).
 
 		$recipient = $entry->getPerformerIdentity();
-		if ( $recipient->getId() === $user->getId() || !self::canReceiveThanks( $recipient ) ) {
+		if ( $recipient->getId() === $user->getId() || !HooksHelper::canReceiveThanks( $recipient ) ) {
 			return;
 		}
 
@@ -525,7 +390,7 @@ class Hooks implements
 		// or the log entry.
 		$type = $entry->getAssociatedRevId() ? 'revision' : 'log';
 		$id = $entry->getAssociatedRevId() ?: $entry->getId();
-		$thankLink = self::generateThankElement( $id, $user, $recipient, $type );
+		$thankLink = HooksHelper::generateThankElement( $id, $user, $recipient, $type );
 
 		// Add parentheses to match what's done with Thanks in revision lists and diff displays.
 		$ret .= ' ' . wfMessage( 'parentheses' )->rawParams( $thankLink )->escaped();
