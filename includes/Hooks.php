@@ -16,6 +16,16 @@ use Html;
 use ImagePage;
 use LogEventsList;
 use LogPage;
+use MediaWiki\Api\Hook\ApiMain__moduleManagerHook;
+use MediaWiki\Auth\Hook\LocalUserCreatedHook;
+use MediaWiki\Block\Hook\GetAllBlockActionsHook;
+use MediaWiki\Diff\Hook\DifferenceEngineViewHeaderHook;
+use MediaWiki\Diff\Hook\DiffToolsHook;
+use MediaWiki\Hook\BeforePageDisplayHook;
+use MediaWiki\Hook\GetLogTypesOnUserHook;
+use MediaWiki\Hook\HistoryToolsHook;
+use MediaWiki\Hook\LogEventsListLineEndingHook;
+use MediaWiki\Hook\PageHistoryBeforeListHook;
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionRecord;
@@ -35,52 +45,53 @@ use WikiPage;
  * @file
  * @ingroup Extensions
  */
-class Hooks {
+class Hooks implements
+    ApiMain__moduleManagerHook,
+    BeforePageDisplayHook,
+    DiffToolsHook,
+    DifferenceEngineViewHeaderHook,
+    GetAllBlockActionsHook,
+    GetLogTypesOnUserHook,
+    HistoryToolsHook,
+    LocalUserCreatedHook,
+    LogEventsListLineEndingHook,
+    PageHistoryBeforeListHook
+{
 
 	/**
 	 * Handler for the HistoryTools hook
 	 *
-	 * @param RevisionRecord $revisionRecord
+	 * @param RevisionRecord $revRecord
 	 * @param array &$links
-	 * @param RevisionRecord|null $oldRevisionRecord
+	 * @param RevisionRecord|null $prevRevRecord
 	 * @param UserIdentity $userIdentity
 	 */
-	public static function onHistoryTools(
-		RevisionRecord $revisionRecord,
-		array &$links,
-		?RevisionRecord $oldRevisionRecord,
-		UserIdentity $userIdentity
-	) {
-		self::insertThankLink( $revisionRecord,
+    public function onHistoryTools( $revRecord, &$links, $prevRevRecord, $userIdentity ) {
+		self::insertThankLink( $revRecord,
 			$links, $userIdentity );
 	}
 
 	/**
 	 * Handler for the DiffTools hook
 	 *
-	 * @param RevisionRecord $revisionRecord
+	 * @param RevisionRecord $newRevRecord
 	 * @param array &$links
-	 * @param RevisionRecord|null $oldRevisionRecord
+	 * @param RevisionRecord|null $oldRevRecord
 	 * @param UserIdentity $userIdentity
 	 */
-	public static function onDiffTools(
-		RevisionRecord $revisionRecord,
-		array &$links,
-		?RevisionRecord $oldRevisionRecord,
-		UserIdentity $userIdentity
-	) {
+    public function onDiffTools( $newRevRecord, &$links, $oldRevRecord, $userIdentity ) {
 		// Don't allow thanking for a diff that includes multiple revisions
 		// This does a query that is too expensive for history rows (T284274)
 		$previous = MediaWikiServices::getInstance()
 			->getRevisionLookup()
-			->getPreviousRevision( $revisionRecord );
-		if ( $oldRevisionRecord && $previous &&
-			$previous->getId() !== $oldRevisionRecord->getId()
+			->getPreviousRevision( $newRevRecord );
+		if ( $oldRevRecord && $previous &&
+			$previous->getId() !== $oldRevRecord->getId()
 		) {
 			return;
 		}
 
-		self::insertThankLink( $revisionRecord,
+		self::insertThankLink( $newRevRecord,
 			$links, $userIdentity );
 	}
 
@@ -231,10 +242,10 @@ class Hooks {
 	 * Handler for PageHistoryBeforeList hook.
 	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/PageHistoryBeforeList
 	 *
-	 * @param WikiPage|Article|ImagePage|CategoryPage $page Not used
+	 * @param WikiPage|Article|ImagePage|CategoryPage $article Not used
 	 * @param RequestContext $context RequestContext object
 	 */
-	public static function onPageHistoryBeforeList( $page, $context ) {
+    public function onPageHistoryBeforeList( $article, $context ) {
 		if ( $context->getUser()->isRegistered() ) {
 			static::addThanksModule( $context->getOutput() );
 		}
@@ -243,11 +254,11 @@ class Hooks {
 	/**
 	 * Handler for DifferenceEngineViewHeader hook.
 	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/DifferenceEngineViewHeader
-	 * @param DifferenceEngine $diff DifferenceEngine object that's calling.
+	 * @param DifferenceEngine $differenceEngine DifferenceEngine object that's calling.
 	 */
-	public static function onDifferenceEngineViewHeader( $diff ) {
-		if ( $diff->getUser()->isRegistered() ) {
-			static::addThanksModule( $diff->getOutput() );
+    public function onDifferenceEngineViewHeader( $differenceEngine ) {
+		if ( $differenceEngine->getUser()->isRegistered() ) {
+			static::addThanksModule( $differenceEngine->getOutput() );
 		}
 	}
 
@@ -316,7 +327,7 @@ class Hooks {
 	 * @param User $user User object that was created.
 	 * @param bool $autocreated True when account was auto-created
 	 */
-	public static function onAccountCreated( $user, $autocreated ) {
+    public function onLocalUserCreated( $user, $autocreated ) {
 		// New users get echo preferences set that are not the default settings for existing users.
 		// Specifically, new users are opted into email notifications for thanks.
 		if ( !$autocreated ) {
@@ -359,11 +370,11 @@ class Hooks {
 	 * @link https://www.mediawiki.org/wiki/Manual:Hooks/GetLogTypesOnUser
 	 * @param string[] &$types The list of log types, to add to.
 	 */
-	public static function onGetLogTypesOnUser( array &$types ) {
+    public function onGetLogTypesOnUser( &$types ) {
 		$types[] = 'thanks';
 	}
 
-	public static function onGetAllBlockActions( array &$actions ) {
+    public function onGetAllBlockActions( &$actions ) {
 		$actions[ 'thanks' ] = 100;
 	}
 
@@ -375,7 +386,7 @@ class Hooks {
 	 * @param OutputPage $out OutputPage object
 	 * @param Skin $skin The skin in use.
 	 */
-	public static function onBeforePageDisplay( OutputPage $out, $skin ) {
+    public function onBeforePageDisplay( $out, $skin ): void {
 		$title = $out->getTitle();
 		// Add to Flow boards.
 		if ( $title instanceof Title && $title->hasContentModel( 'flow-board' ) ) {
@@ -400,7 +411,7 @@ class Hooks {
 	 *
 	 * @param ApiModuleManager $moduleManager Module manager instance
 	 */
-	public static function onApiMainModuleManager( ApiModuleManager $moduleManager ) {
+    public function onApiMain__moduleManager( $moduleManager ) {
 		if ( ExtensionRegistry::getInstance()->isLoaded( 'Flow' ) ) {
 			$moduleManager->addModule(
 				'flowthank',
@@ -453,9 +464,9 @@ class Hooks {
 	 * @param string[] &$attribs HTML attributes to add to the line.
 	 * @throws ConfigException
 	 */
-	public static function onLogEventsListLineEnding(
-		LogEventsList $page, &$ret, DatabaseLogEntry $entry, &$classes, &$attribs
-	) {
+    public function onLogEventsListLineEnding( $page, &$ret, $entry, &$classes,
+                                               &$attribs
+    ) {
 		$user = $page->getUser();
 
 		// Don't thank if anonymous or blocked or if user is deleted from the log entry
@@ -473,7 +484,7 @@ class Hooks {
 			->getMainConfig()
 			->get( 'ThanksAllowedLogTypes' );
 		if ( !in_array( $entry->getType(), $allowedLogTypes )
-			&& !in_array( $entry->getType() . '/' . $entry->getSubtype(), $allowedLogTypes ) ) {
+			&& !in_array( $entry->getType() . 'Hooks.php/' . $entry->getSubtype(), $allowedLogTypes ) ) {
 			return;
 		}
 
